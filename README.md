@@ -16,6 +16,7 @@ A self-hosted German language learning app designed to run on a Raspberry Pi. Th
 | SRS Algorithm | FSRS (via ts-fsrs) |
 | Grammar Checking | LanguageTool (self-hosted, Java) |
 | Deployment | Docker Compose |
+| Linting / Formatting | Biome |
 
 ---
 
@@ -24,6 +25,10 @@ A self-hosted German language learning app designed to run on a Raspberry Pi. Th
 ```bash
 # Clone the repo
 git clone <repo-url> && cd lernen
+
+# Set up environment variables
+cp .env.example .env
+# Edit .env — set ADMIN_PASSWORD and generate JWT secrets with: openssl rand -hex 32
 
 # Start everything (pulls Ollama model on first run — ~1GB)
 docker compose up -d
@@ -268,11 +273,21 @@ Three-layer checking mirrors how a human teacher grades: typos are forgiven, par
 # Install dependencies
 pnpm install
 
-# Run in dev mode (requires local MongoDB, Redis, Ollama)
+# Copy env template and fill in values
+cp .env.example .env
+
+# Option A — Docker dev mode (recommended, includes MongoDB/Redis/Ollama)
+pnpm dev:docker
+
+# Option B — Run apps directly (requires local MongoDB, Redis, Ollama)
 pnpm dev
 
 # Type check all packages
-pnpm -r tsc --noEmit
+pnpm --filter @lernen/api exec tsc --noEmit
+pnpm --filter @lernen/web exec tsc --noEmit
+
+# Lint + format check (Biome)
+pnpm biome check apps/ packages/
 
 # Seed database
 pnpm seed
