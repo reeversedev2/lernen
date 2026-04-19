@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Environment variables — never commit real secrets
+.env
+.env.local
+.env.*.local
+
+# Production docker compose — contains real secrets
+docker-compose.prod.yml
+
+# Deployment script — contains server hostname and username
+deploy.sh
+
+# Build output
+dist/
+build/
+.turbo/
+
+# Logs
+*.log
+logs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# TypeScript
+*.tsbuildinfo

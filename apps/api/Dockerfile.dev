@@ -1,0 +1,12 @@
+FROM node:20-alpine
+WORKDIR /app
+RUN npm install -g pnpm tsx
+
+# Install deps (source is mounted as a volume, not copied)
+COPY pnpm-lock.yaml package.json pnpm-workspace.yaml .npmrc ./
+COPY apps/api/package.json ./apps/api/
+COPY packages/shared/package.json ./packages/shared/
+RUN pnpm install --frozen-lockfile
+
+EXPOSE 3001
+CMD ["tsx", "watch", "apps/api/src/index.ts"]

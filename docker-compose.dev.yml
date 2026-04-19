@@ -1,0 +1,117 @@
+services:
+  mongodb:
+    image: mongo:7
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: lernen
+      MONGO_INITDB_ROOT_PASSWORD: lernen_dev_password
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  ollama-pull:
+    image: ollama/ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "[ollama-pull] Waiting for Ollama server..."
+        until ollama list > /dev/null 2>&1; do sleep 2; done
+        if ollama list | grep -q "qwen3:1.7b"; then
+          echo "[ollama-pull] qwen3:1.7b already present."
+        else
+          echo "[ollama-pull] Downloading qwen3:1.7b..."
+          ollama pull qwen3:1.7b
+          echo "[ollama-pull] Download complete."
+        fi
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile.dev
+    volumes:
+      # Mount source — changes trigger tsx watch reload
+      - ./apps/api/src:/app/apps/api/src
+      - ./packages/shared/src:/app/packages/shared/src
+    environment:
+      - NODE_ENV=development
+      - MONGODB_URI=mongodb://lernen:lernen_dev_password@mongodb:27017/lernen?authSource=admin
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=dev_jwt_secret_change_in_production
+      - JWT_REFRESH_SECRET=dev_refresh_secret_change_in_production
+      - PORT=3001
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=qwen3:1.7b
+    ports:
+      - "3001:3001"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile.dev
+    volumes:
+      # Mount source — changes trigger Vite HMR
+      # Mount specific files/dirs only so local node_modules
+      # doesn't shadow the container's installed modules.
+      - ./apps/web/src:/app/apps/web/src
+      - ./apps/web/index.html:/app/apps/web/index.html
+      - ./apps/web/vite.config.ts:/app/apps/web/vite.config.ts
+      - ./apps/web/tsconfig.json:/app/apps/web/tsconfig.json
+      - ./packages/shared/src:/app/packages/shared/src
+    environment:
+      - NODE_ENV=development
+      # Proxy /api to the api service inside Docker network
+      - VITE_API_URL=http://api:3001
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+
+volumes:
+  mongodb_data:
+  redis_data:
+  ollama_data:
